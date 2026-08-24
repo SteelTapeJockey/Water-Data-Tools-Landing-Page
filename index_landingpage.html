@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wellspring — Water Data Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --riverstone:#E7ECE4;
+    --basin:#16302F;
+    --basin-soft:rgba(22,48,47,0.64);
+    --basin-faint:rgba(22,48,47,0.38);
+    --flow:#2C6E8E;
+    --flow-deep:#1E5570;
+    --sediment:#B9803F;
+    --foam:#FBFAF5;
+    --rust:#B44A2E;
+    --line:rgba(22,48,47,0.14);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+    *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important;}
+  }
+
+  body{
+    margin:0;
+    background:var(--riverstone);
+    color:var(--basin);
+    font-family:'Source Serif 4', Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .mono{font-family:'IBM Plex Mono', monospace; letter-spacing:0.04em;}
+  .display{font-family:'Space Grotesk', sans-serif;}
+
+  a{color:inherit;}
+  a:focus-visible, button:focus-visible{outline:2px solid var(--flow); outline-offset:3px;}
+
+  /* faint contour texture across the whole page */
+  .contours{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    opacity:0.35;
+    background-image:
+      repeating-radial-gradient(circle at 12% 8%, transparent 0 46px, rgba(22,48,47,0.05) 47px 48px),
+      repeating-radial-gradient(circle at 92% 82%, transparent 0 60px, rgba(44,110,142,0.05) 61px 62px);
+  }
+
+  .wrap{max-width:1120px; margin:0 auto; padding:0 32px; position:relative; z-index:1;}
+
+  /* ---------- nav ---------- */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(231,236,228,0.86);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+  }
+  nav.wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    height:76px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; text-decoration:none;}
+  .brand svg{display:block;}
+  .brand-text{display:flex; flex-direction:column; line-height:1;}
+  .brand-name{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:19px; letter-spacing:0.01em;}
+  .brand-sub{font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.14em; color:var(--basin-soft); margin-top:4px;}
+
+  .navlinks{display:flex; gap:36px; list-style:none; margin:0; padding:0;}
+  .navlinks a{
+    text-decoration:none; font-family:'IBM Plex Mono', monospace; font-size:12.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--basin-soft);
+    padding-bottom:4px; border-bottom:1px solid transparent;
+    transition:color 0.2s ease, border-color 0.2s ease;
+  }
+  .navlinks a:hover{color:var(--flow); border-color:var(--flow);}
+
+  @media (max-width:720px){
+    .navlinks{display:none;}
+  }
+
+  /* ---------- hero ---------- */
+  .hero{padding:96px 0 64px; position:relative;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--flow-deep); margin:0 0 22px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{
+    content:""; width:20px; height:1px; background:var(--flow-deep); display:inline-block;
+  }
+
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:clamp(34px, 5.4vw, 62px);
+    line-height:1.06;
+    letter-spacing:-0.01em;
+    margin:0 0 28px;
+    max-width:15ch;
+  }
+  h1 em{
+    font-style:normal;
+    color:var(--flow);
+  }
+
+  .hero-sub{
+    font-size:19px;
+    line-height:1.6;
+    color:var(--basin-soft);
+    max-width:56ch;
+    margin:0 0 40px;
+  }
+
+  .hero-meta{
+    display:flex; gap:36px; flex-wrap:wrap;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--basin-faint);
+  }
+  .hero-meta span{display:block;}
+  .hero-meta strong{display:block; color:var(--basin); font-size:15px; margin-bottom:3px; font-weight:500;}
+
+  /* animated hydrograph line under hero */
+  .hydrograph{width:100%; height:auto; display:block; margin-top:56px;}
+  .hydrograph path{
+    fill:none; stroke:var(--flow); stroke-width:1.6;
+    stroke-dasharray:1400; stroke-dashoffset:1400;
+    animation:draw 2.4s ease-out forwards 0.3s;
+  }
+  .hydrograph path.dry{stroke:var(--sediment); opacity:0.55;}
+  @keyframes draw{ to { stroke-dashoffset:0; } }
+
+  /* ---------- stations ---------- */
+  .stations{position:relative; padding:20px 0 40px;}
+  .river-bg{
+    position:absolute; inset:0; width:100%; height:100%;
+    z-index:0; opacity:0.5;
+  }
+  .river-bg path{
+    fill:none; stroke:var(--flow); stroke-width:1.2; opacity:0.28;
+  }
+
+  .station{
+    position:relative; z-index:1;
+    display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center;
+    padding:56px 0; border-top:1px solid var(--line);
+    opacity:0; transform:translateY(18px);
+    transition:opacity 0.7s ease, transform 0.7s ease;
+  }
+  .station.in-view{opacity:1; transform:translateY(0);}
+  .station:nth-child(even) .station-media{order:2;}
+  .station:nth-child(even) .station-copy{order:1;}
+
+  @media (max-width:860px){
+    .station{grid-template-columns:1fr; gap:26px; padding:44px 0;}
+    .station:nth-child(even) .station-media,
+    .station:nth-child(even) .station-copy{order:initial;}
+  }
+
+  .station-tag{
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--flow-deep);
+    padding:5px 10px; border:1px solid var(--flow-deep); border-radius:var(--radius);
+    margin-bottom:18px;
+  }
+
+  .station h2{
+    font-family:'Space Grotesk', sans-serif; font-weight:600;
+    font-size:clamp(22px, 2.6vw, 30px); margin:0 0 14px; letter-spacing:-0.005em;
+  }
+
+  .station p{
+    font-size:16.5px; line-height:1.65; color:var(--basin-soft);
+    margin:0 0 26px; max-width:46ch;
+  }
+
+  .cta{
+    display:inline-flex; align-items:center; gap:9px;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; letter-spacing:0.05em;
+    text-decoration:none; color:var(--foam); background:var(--basin);
+    padding:12px 20px; border-radius:var(--radius);
+    transition:background 0.2s ease, transform 0.2s ease;
+  }
+  .cta:hover{background:var(--flow-deep); transform:translateX(2px);}
+  .cta svg{transition:transform 0.2s ease;}
+  .cta:hover svg{transform:translateX(3px);}
+
+  /* station media: little instrument-panel card */
+  .station-media{
+    background:var(--foam);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:26px;
+    min-height:190px;
+    display:flex; flex-direction:column; justify-content:space-between;
+    box-shadow:0 1px 0 rgba(22,48,47,0.04);
+  }
+  .panel-row{display:flex; justify-content:space-between; align-items:baseline;}
+  .panel-label{font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; color:var(--basin-faint); text-transform:uppercase;}
+  .panel-value{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:15px;}
+  .panel-status{
+    display:flex; align-items:center; gap:7px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--flow-deep); letter-spacing:0.06em;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--flow); flex-shrink:0;}
+  .dot.pulse{animation:pulse 2.2s ease-in-out infinite;}
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .panel-graph{margin:14px 0;}
+  .panel-graph svg{width:100%; height:52px; display:block;}
+  .panel-graph path{fill:none; stroke:var(--flow); stroke-width:1.6;}
+  .panel-graph.sediment path{stroke:var(--sediment);}
+
+  /* ---------- footer ---------- */
+  footer{
+    border-top:1px solid var(--line);
+    padding:44px 0 60px;
+    position:relative; z-index:1;
+  }
+  footer .wrap{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;}
+  footer p{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--basin-faint);
+    margin:0; letter-spacing:0.02em; line-height:1.7; max-width:48ch;
+  }
+  .footer-mark{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; color:var(--basin-soft);}
+</style>
+</head>
+<body>
+
+<div class="contours" aria-hidden="true"></div>
+
+<header>
+  <nav class="wrap">
+    <a class="brand" href="#top">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="none" stroke="#16302F" stroke-width="1"/>
+        <path d="M4 17 Q 9 11, 15 17 T 26 15" fill="none" stroke="#2C6E8E" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-text">
+        <span class="brand-name">Wellspring</span>
+        <span class="brand-sub">WATER DATA TOOLS</span>
+      </span>
+    </a>
+    <ul class="navlinks">
+      <li><a href="#viewer">Viewer</a></li>
+      <li><a href="#downloader">Downloader</a></li>
+      <li><a href="#trends">Trends</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <p class="eyebrow">Brought to the surface</p>
+    <h1>What the <em>water record</em> hides, out in the open.</h1>
+    <p class="hero-sub">Most of this record sits buried in raw feeds and portals. These three tools bring it to the surface — live and historical readings, clean Water Quality Portal exports, and diversion trends for any point of diversion.</p>
+
+    <div class="hero-meta">
+      <span><strong>Live + archival</strong>Site data, current and historical</span>
+      <span><strong>Bulk export</strong>WQP queries, ready to use</span>
+      <span><strong>Time series</strong>Diversion trends by POD</span>
+    </div>
+
+    <svg class="hydrograph" viewBox="0 0 1000 90" preserveAspectRatio="none" aria-hidden="true">
+      <path class="dry" d="M0 60 L120 58 L180 40 L240 62 L320 55 L400 20 L470 65 L560 50 L650 62 L720 34 L800 58 L880 46 L1000 55" />
+      <path d="M0 66 L90 64 L160 30 L230 68 L300 60 L380 15 L440 70 L520 45 L600 68 L680 25 L760 62 L840 40 L920 66 L1000 50" />
+    </svg>
+  </section>
+
+  <section class="stations wrap">
+    <svg class="river-bg" viewBox="0 0 1000 1200" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M100 0 C 400 150, 200 300, 700 380 S 250 650, 750 780 S 150 1000, 700 1200" />
+    </svg>
+
+    <article class="station" id="viewer">
+      <div class="station-copy">
+        <span class="station-tag">Map + hydrograph</span>
+        <h2>Water Data Viewer</h2>
+        <p>Find a monitoring site on the map, then read its record straight away — stage, discharge, temperature, and water quality plotted side by side, live and historical.</p>
+        <a class="cta" href="https://nm-water-data-viewer.cristopher-morton.workers.dev/" aria-label="Open the Water Data Viewer">
+          Open the viewer
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M0 5H13M13 5L9 1M13 5L9 9" stroke="currentColor" stroke-width="1.3"/></svg>
+        </a>
+      </div>
+      <div class="station-media">
+        <div class="panel-row">
+          <span class="panel-label">Gauge height</span>
+          <span class="panel-status"><span class="dot pulse"></span>Live</span>
+        </div>
+        <div class="panel-graph">
+          <svg viewBox="0 0 300 52" preserveAspectRatio="none">
+            <path d="M0 40 L30 38 L55 20 L80 42 L110 35 L140 8 L165 45 L195 28 L225 44 L255 15 L280 36 L300 30" />
+          </svg>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Updated</span>
+          <span class="panel-value mono" style="font-size:12px;">15 min ago</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="station" id="downloader">
+      <div class="station-copy">
+        <span class="station-tag">Bulk export</span>
+        <h2>WQP Downloader</h2>
+        <p>Query the Water Quality Portal by site, parameter, or date range and get back one clean file — properly labeled columns, consistent units, no manual scrubbing.</p>
+        <a class="cta" href="https://nm-wqp-downloader.cristopher-morton.workers.dev/" aria-label="Open the WQP Downloader">
+          Start a download
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M0 5H13M13 5L9 1M13 5L9 9" stroke="currentColor" stroke-width="1.3"/></svg>
+        </a>
+      </div>
+      <div class="station-media">
+        <div class="panel-row">
+          <span class="panel-label">Query</span>
+          <span class="panel-value mono" style="font-size:12px;">pH, DO, turbidity</span>
+        </div>
+        <div class="panel-graph">
+          <svg viewBox="0 0 300 52" preserveAspectRatio="none">
+            <rect x="10" y="20" width="18" height="26" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="45" y="10" width="18" height="36" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="80" y="26" width="18" height="20" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="115" y="4" width="18" height="42" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="150" y="18" width="18" height="28" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="185" y="12" width="18" height="34" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="220" y="22" width="18" height="24" fill="#2C6E8E" opacity="0.75"/>
+            <rect x="255" y="8" width="18" height="38" fill="#2C6E8E" opacity="0.75"/>
+          </svg>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Format</span>
+          <span class="panel-value mono" style="font-size:12px;">CSV / XLSX</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="station" id="trends">
+      <div class="station-copy">
+        <span class="station-tag">Diversion history</span>
+        <h2>POD Trend Explorer</h2>
+        <p>Look up any point of diversion and see how reported use has moved over time — the trend, not just the last reading.</p>
+        <a class="cta" href="https://pods-trends-viewer.cristopher-morton.workers.dev/" aria-label="Open the POD Trend Explorer">
+          Explore trends
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M0 5H13M13 5L9 1M13 5L9 9" stroke="currentColor" stroke-width="1.3"/></svg>
+        </a>
+      </div>
+      <div class="station-media">
+        <div class="panel-row">
+          <span class="panel-label">Point of diversion</span>
+          <span class="panel-status"><span class="dot" style="background:#B9803F;"></span>Active</span>
+        </div>
+        <div class="panel-graph sediment">
+          <svg viewBox="0 0 300 52" preserveAspectRatio="none">
+            <path d="M0 44 L40 40 L80 30 L120 32 L160 18 L200 22 L240 10 L300 14" />
+          </svg>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Period</span>
+          <span class="panel-value mono" style="font-size:12px;">2015–2024</span>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="footer-mark">Wellspring</span>
+    <p>Draws on public monitoring and water-rights records most people never see. Built to bring the record to the surface, not leave it buried.</p>
+  </div>
+</footer>
+
+<script>
+  const stations = document.querySelectorAll('.station');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in-view');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.18 });
+    stations.forEach(s => io.observe(s));
+  } else {
+    stations.forEach(s => s.classList.add('in-view'));
+  }
+</script>
+
+</body>
+</html>
